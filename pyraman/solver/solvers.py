@@ -23,11 +23,11 @@ class RamanAmplifier:
 
         self.bandwidth = bandwidth
 
-        self.spline = self._compute_gain_spectrum(bandwidth, viz=viz)
+        self.spline = self._compute_gain_spectrum(bandwidth)
 
         super().__init__()
 
-    def _compute_gain_spectrum(self, bandwidth, spacing=50e9, viz=False):
+    def _compute_gain_spectrum(self, bandwidth, spacing=50e9):
 
         fs = 2 * bandwidth
 
@@ -41,9 +41,14 @@ class RamanAmplifier:
 
         resp, t = impulse_response(None, fs, num_samples=num_samples)
 
+        resp -= resp.mean()
+
         spectrum = np.fft.fft(resp)
 
         gain_spectrum = -np.imag(spectrum)
+
+        # Normalize the peak to 1
+        gain_spectrum /= np.max(np.abs(gain_spectrum))
 
         # Compute the spline representation of the signal for later use
         # This is done in the constructor so that each call of the
@@ -52,17 +57,17 @@ class RamanAmplifier:
         # of the precomputed spectrum
         spline = scipy.interpolate.splrep(f, gain_spectrum, k=3)
 
-        if viz:
-            plt.figure()
-            plt.subplot(1, 2, 1)
-            plt.plot(t * 1e12, resp)
-            plt.xlabel('Time [ps]')
+        # if viz:
+        #     plt.figure()
+        #     plt.subplot(1, 2, 1)
+        #     plt.plot(t * 1e12, resp)
+        #     plt.xlabel('Time [ps]')
 
-            plt.subplot(1, 2, 2)
-            plt.plot(f * 1e-12, gain_spectrum, marker='.')
-            # plt.yscale('log')
-            plt.xlabel('Frequency shift [THz]')
-            plt.show(block=False)
+        #     plt.subplot(1, 2, 2)
+        #     plt.plot(f * 1e-12, gain_spectrum, marker='.')
+        #     # plt.yscale('log')
+        #     plt.xlabel('Frequency shift [THz]')
+        #     plt.show(block=False)
 
         return spline
 
@@ -115,8 +120,7 @@ class RamanAmplifier:
 
         idx = 3
 
-        # ! gain matrix is not symmetric here due to wrong frequency axis
-        gains, spectrum, f = gain_spectrum(frequency_shifts, normalize=True)
+        gains = self._interpolate_gain(frequency_shifts)
 
         gains *= raman_coefficient / effective_core_area
 
@@ -153,7 +157,7 @@ class RamanAmplifier:
 if __name__ == "__main__":
     ampl = RamanAmplifier(bandwidth=40e12, viz=True)
 
-    freqs = np.linspace(-50, 50, 1000) * 1e12
+    freqs = np.linspace(-30, 30, 1000) * 1e12
     gains = ampl._interpolate_gain(freqs)
 
     plt.figure()
