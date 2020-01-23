@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.interpolate
 
-from pyraman.utils import speed_of_light
+from pyraman.utils import c0
 
 positions = np.array([56.25, 100.00, 231.25, 362.50, 463.00, 497.00, 611.50,
                       691.67, 793.67, 835.50, 930.00, 1080.00, 1215.00]) * 1e2
@@ -17,13 +17,13 @@ l_fwhm = np.array([17.37, 38.81, 58.33, 54.17, 45.11, 8.17, 13.83, 51.67,
                    19.83, 21.43, 50.00, 30.33, 53.33]) * 1e2
 
 # Vibrational frequencies
-omega_v = 2 * np.pi * speed_of_light * positions
+omega_v = 2 * np.pi * c0 * positions
 
 # Lorentzian FWHM
-gamma = np.pi * speed_of_light * l_fwhm
+gamma = np.pi * c0 * l_fwhm
 
 # Gaussian FWHM
-Gamma = np.pi * speed_of_light * g_fwhm
+Gamma = np.pi * c0 * g_fwhm
 
 # Amplitude
 amplitudes = intensities * omega_v
