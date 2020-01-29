@@ -1,20 +1,75 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import scipy.interpolate
 
 from pyraman.utils import c0
 
-positions = np.array([56.25, 100.00, 231.25, 362.50, 463.00, 497.00, 611.50,
-                      691.67, 793.67, 835.50, 930.00, 1080.00, 1215.00]) * 1e2
+positions = (
+    np.array(
+        [
+            56.25,
+            100.00,
+            231.25,
+            362.50,
+            463.00,
+            497.00,
+            611.50,
+            691.67,
+            793.67,
+            835.50,
+            930.00,
+            1080.00,
+            1215.00,
+        ]
+    )
+    * 1e2
+)
 
-intensities = np.array([1.00, 11.40, 36.67, 67.67, 74.00, 4.50, 6.80, 4.60, 4.20,
-                        4.50, 2.70, 3.10, 3.00])
+intensities = np.array(
+    [1.00, 11.40, 36.67, 67.67, 74.00, 4.50, 6.80, 4.60, 4.20, 4.50, 2.70, 3.10, 3.00]
+)
 
-g_fwhm = np.array([52.10, 110.42, 175.00, 162.50, 135.33, 24.50, 41.50,
-                   155.00, 59.50, 64.30, 150.00, 91.00, 160.00]) * 1e2
+g_fwhm = (
+    np.array(
+        [
+            52.10,
+            110.42,
+            175.00,
+            162.50,
+            135.33,
+            24.50,
+            41.50,
+            155.00,
+            59.50,
+            64.30,
+            150.00,
+            91.00,
+            160.00,
+        ]
+    )
+    * 1e2
+)
 
-l_fwhm = np.array([17.37, 38.81, 58.33, 54.17, 45.11, 8.17, 13.83, 51.67,
-                   19.83, 21.43, 50.00, 30.33, 53.33]) * 1e2
+l_fwhm = (
+    np.array(
+        [
+            17.37,
+            38.81,
+            58.33,
+            54.17,
+            45.11,
+            8.17,
+            13.83,
+            51.67,
+            19.83,
+            21.43,
+            50.00,
+            30.33,
+            53.33,
+        ]
+    )
+    * 1e2
+)
 
 # Vibrational frequencies
 omega_v = 2 * np.pi * c0 * positions
@@ -61,9 +116,12 @@ def impulse_response(duration, fs, normalize=False, num_samples=None):
 
     t = np.arange(num_samples) * dt
 
-    modes = np.reshape(amplitudes / omega_v, (num_components, 1)) * \
-        np.exp(-np.outer(gamma, t)) * np.exp(-np.outer(Gamma**2, t**2/4)) * \
-        np.sin(np.outer(omega_v, t))
+    modes = (
+        np.reshape(amplitudes / omega_v, (num_components, 1))
+        * np.exp(-np.outer(gamma, t))
+        * np.exp(-np.outer(Gamma ** 2, t ** 2 / 4))
+        * np.sin(np.outer(omega_v, t))
+    )
 
     response = np.sum(modes, axis=0)
 
@@ -117,7 +175,7 @@ def gain_spectrum(frequencies, spacing=20e9, normalize=False, spline_order=4):
     # ! This is not correct: at f = 0, gain is != 0
     # ! Maybe take the modulus of the negative frequencies and switch the sign
     # ! of the gain to force simmetry around f = 0
-    f = (np.arange(num_samples)) * dF - (num_samples-1) * dF/2
+    f = (np.arange(num_samples)) * dF - (num_samples - 1) * dF / 2
 
     # obtain the Raman gain as the imaginary part of
     # the spectrum
@@ -146,5 +204,5 @@ if __name__ == "__main__":
 
     plt.clf()
     plt.plot(f * 1e-12, spectrum)
-    plt.plot(ff.T * 1e-12, raman_gain_interp.T, marker='x')
+    plt.plot(ff.T * 1e-12, raman_gain_interp.T, marker="x")
     plt.show(block=False)

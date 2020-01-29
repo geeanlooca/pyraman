@@ -1,0 +1,17 @@
+numpy
+scipy
+matplotlib
+pint
+pytest
+pytest-cov
+pylint
+sphinx
+sphinx_rtd_theme
+sphinx-copybutton
+autopep8
+flake8
+flake8-docstrings
+autodocsumm
+black
+docformatter
+isort
