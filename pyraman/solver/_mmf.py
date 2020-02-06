@@ -18,9 +18,18 @@ class MMFAmplifier(RamanAmplifier):
         super().__init__()
 
     def solve(
-        self, signal_power, signal_wavelength, pump_power, pump_wavelength, z, fiber
+        self,
+        signal_power,
+        signal_wavelength,
+        pump_power,
+        pump_wavelength,
+        z,
+        fiber,
+        direction=1,
+        maxiter=100,
+        tol=1e-3
     ):
-        """Solve the multi-mode Raman amplifier equations [1].
+        """Solve the multi-mode Raman amplifier equations [1][2].
 
         Params
         ------
@@ -41,6 +50,31 @@ class MMFAmplifier(RamanAmplifier):
             meters.
         fiber: pyraman.Fiber
             Fiber object defining the amplifier
+        direction: np.ndarray or scalar
+            Array definining the propagation direction of the pumps. 
+            The sign of every element determines if the respective pump
+            is co-propagating (positive) or counter-propagating (negative). 
+            If scalar, it affects every pump.
+        maxiter: int
+            In case of counter-pumping amplifier, the maximum number of
+            iterations allowed for the shooting algorithm.
+        tol: float
+            Error tolerance on the pumps initial value when considering
+            a counter-pumping amplifier. If the error on every pump is below
+            `tol`, the shooting algorithm stops. Naturally defined in the same
+            units as `pump_power`.
+            
+
+        Notes
+        -----
+        All the quantities are stored alternating modes first, and then
+        wavelength.
+
+        Raises
+        ------
+        ValueError
+            when the `direction` parameter is not a scalar or has a number
+            of elements different than the number of pump wavelengths.
 
         References
         ----------
@@ -50,6 +84,10 @@ class MMFAmplifier(RamanAmplifier):
                Conference, Los Angeles, California: OSA, OW1D.2.
                https://www.osapublishing.org/abstract.cfm?uri=OFC-2012-OW1D.2
                (June 5, 2019).
+        .. [2] Zhou, Junhe. 2014. “An Analytical Approach for Gain Optimization
+               in Multimode Fiber Raman Amplifiers.” Optics Express
+               22(18): 21393.
+
         """
 
         num_signals = signal_power.shape[0]
@@ -61,6 +99,21 @@ class MMFAmplifier(RamanAmplifier):
 
         pump_power_ = pump_power.flatten()
         signal_power_ = signal_power.flatten()
+
+        # Handle the counter-pumping case
+        direction_ = np.ones((total_signals,))
+        
+        if np.size(direction) == 1:
+            direction_[:num_pumps] *= np.sign(direction)
+        elif np.size(direction) == num_pumps:
+            direction_[:num_pumps] = np.sign(direction)
+        else:
+            raise ValueError(
+                "direction must either be a scalar or a vector"
+                + "of the same size as pump_wavelengths"
+            )
+
+        direction_ = np.repeat(direction_, fiber.modes)
 
         wavelengths = np.concatenate((pump_wavelength, signal_wavelength))
         input_power = np.concatenate((pump_power_, signal_power_))
@@ -97,10 +150,69 @@ class MMFAmplifier(RamanAmplifier):
 
         gains_mmf = np.kron(gain_matrix, M) * oi
 
-        sol = scipy.integrate.odeint(
-            MMFAmplifier.raman_ode, input_power, z, args=(losses_linear, gains_mmf)
-        )
+        if np.any(direction_ < 0):
+            # Shooting is needed
 
+            # Target pump values
+            bw_idx = direction_ < 0
+            bw_pump_power = input_power[bw_idx]
+
+            # The initial pump guess is the scaled undepleted pump solution
+            guess = bw_pump_power * np.exp(-z[-1] * losses_linear) / 10
+
+            # Error tolerance: stop when every guess differs from the target
+            # values less than `tol`
+            tol = 1e-3
+
+            # Number of iterations
+            iters = 0
+
+            # Start the loop
+            stop = False
+            
+            scaling = 0.1
+            
+            while not stop and iters < maxiter:
+
+                # Replace the initial pump values with the current guess
+                input_power[bw_idx] = guess
+
+                sol = scipy.integrate.odeint(
+                    MMFAmplifier.raman_ode,
+                    input_power,
+                    z,
+                    args=(losses_linear, gains_mmf, direction_),
+                )
+
+                # Compute the residual error
+                curr_value = sol[-1, bw_idx]
+                residual = curr_value - bw_pump_power
+
+                # If the error is below the tolerance, stop
+                if np.all(np.abs(residual) < tol):
+                    stop = True
+
+                iters += 1
+
+                # Update rule
+                guess = np.maximum(0, guess - scaling * residual)
+
+            print(f"Iterations: {iters}")
+            
+            if iters >= maxiter:
+                print(f"Reached maximum number of iterations.")
+
+        else:
+            # Forward pumping
+            sol = scipy.integrate.odeint(
+                MMFAmplifier.raman_ode,
+                input_power,
+                z,
+                args=(losses_linear, gains_mmf, direction_),
+            )
+
+        # Reshape the solution so that the third dimension specifies the
+        # mode.
         sol = sol.reshape((-1, total_signals, fiber.modes))
 
         pump_solution = sol[:, :num_pumps, :]
@@ -109,11 +221,11 @@ class MMFAmplifier(RamanAmplifier):
         return pump_solution, signal_solution
 
     @staticmethod
-    def raman_ode(P, z, losses, gain_matrix):
+    def raman_ode(P, z, losses, gain_matrix, direction):
         """Integration step of the multimode Raman system."""
         dPdz = (-losses + np.matmul(gain_matrix, P[:, np.newaxis])) * P[:, np.newaxis]
 
-        return np.squeeze(dPdz)
+        return direction * np.squeeze(dPdz)
 
 
 if __name__ == "__main__":
