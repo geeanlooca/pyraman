@@ -26,7 +26,6 @@ class Fiber:
         modes=1,
         overlap_integrals=None,
     ):
-        self.name = name
         self.effective_area = effective_area
         self.raman_coefficient = raman_coefficient
 
