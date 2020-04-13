@@ -42,13 +42,7 @@ class Fiber:
         super().__init__()
 
     def __str__(self):
-        description = f"""
-        Raman coefficient: {self.raman_coefficient} m/W
-        Raman efficiency: {self.raman_efficiency} 1/(m*W)
-        Losses: {self.losses_dB} dB/km
-        Losses: {self.losses:0.3} 1/m
-        """
-        return description
+        return str(self.__dict__)
 
     def __repr__(self):
         return self.__str__()
