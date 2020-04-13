@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.integrate
 
+from scipy import polyval
+
 import pyraman.utils
 from pyraman.response import gain_spectrum, impulse_response
 from pyraman.utils import (
@@ -24,15 +26,16 @@ class Fiber:
         modes=1,
         overlap_integrals=None,
     ):
-
+        self.name = name
         self.effective_area = effective_area
-        self.raman_coefficient = 7e-14
-        self.losses = alpha_to_linear(losses)
-        self.losses_dB = losses
+        self.raman_coefficient = raman_coefficient
+
+        try:
+            self.losses = list(losses)
+        except:
+            self.losses = [losses]
+
         self.raman_efficiency = self.raman_coefficient / self.effective_area
-        self.raman_threshold = (
-            16 * losses * self.raman_coefficient / self.effective_area
-        )
         self.modes = modes
         self.overlap_integrals = overlap_integrals
 
@@ -44,7 +47,6 @@ class Fiber:
         Raman efficiency: {self.raman_efficiency} 1/(m*W)
         Losses: {self.losses_dB} dB/km
         Losses: {self.losses:0.3} 1/m
-        Raman threshold: {self.raman_threshold:0.3} W
         """
         return description
 
@@ -146,7 +148,15 @@ class RamanAmplifier:
 
         frequencies = wavelength_to_frequency(wavelengths)
 
-        losses_linear = alpha_to_linear(losses)
+        # Loss coefficients are fitted with wavelengths in nanometers
+        try:
+            loss_coeffs = list(losses)
+        except:
+            loss_coeffs = [losses]
+
+        losses_ = polyval(losses, wavelengths * 1e9)
+
+        losses_linear = alpha_to_linear(losses_)
 
         # Compute the frequency shifts for each signal
         frequency_shifts = np.zeros((total_signals, total_signals))
@@ -156,8 +166,6 @@ class RamanAmplifier:
         gains = self._interpolate_gain(frequency_shifts)
 
         gains *= raman_coefficient / effective_core_area
-
-        raman_threshold = 16 * losses_linear * raman_coefficient / effective_core_area
 
         # Force diagonal to be 0
         np.fill_diagonal(gains, 0)
@@ -185,7 +193,9 @@ class RamanAmplifier:
 
     @staticmethod
     def raman_ode(P, z, losses, gain_matrix):
-        dPdz = (-losses + np.matmul(gain_matrix, P[:, np.newaxis])) * P[:, np.newaxis]
+        dPdz = (-losses[:, np.newaxis] + np.matmul(gain_matrix, P[:, np.newaxis])) * P[
+            :, np.newaxis
+        ]
         return np.squeeze(dPdz)
 
 

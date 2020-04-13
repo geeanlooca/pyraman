@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 
+from scipy import polyval
+
 from pyraman.solver.solvers import Fiber, RamanAmplifier
 from pyraman.utils import alpha_to_linear, wavelength_to_frequency
 
@@ -67,7 +69,12 @@ class MMFAmplifier(RamanAmplifier):
 
         frequencies = wavelength_to_frequency(wavelengths)
 
-        losses_linear = alpha_to_linear(fiber.losses_dB)
+        loss_coeffs = fiber.losses
+
+        losses_ = polyval(loss_coeffs, wavelengths * 1e9)
+
+        losses_linear = alpha_to_linear(losses_)
+        losses_linear = np.repeat(losses_linear, fiber.modes)
 
         # Compute the frequency shifts for each signal
         frequency_shifts = np.zeros((total_signals, total_signals))
@@ -111,7 +118,9 @@ class MMFAmplifier(RamanAmplifier):
     @staticmethod
     def raman_ode(P, z, losses, gain_matrix):
         """Integration step of the multimode Raman system."""
-        dPdz = (-losses + np.matmul(gain_matrix, P[:, np.newaxis])) * P[:, np.newaxis]
+        dPdz = (-losses[:, np.newaxis] + np.matmul(gain_matrix, P[:, np.newaxis])) * P[
+            :, np.newaxis
+        ]
 
         return np.squeeze(dPdz)
 
