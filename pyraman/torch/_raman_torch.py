@@ -239,7 +239,7 @@ class MMFRamanAmplifier(torch.nn.Module):
         # Concatenate input pump power and signal power
         total_power = torch.cat(
             (
-                x[:, self.num_pumps :],
+                torch.nn.functional.relu(x[:, self.num_pumps :]),
                 self.signal_power.expand(batch_size, self.num_channels * self.modes),
             ),
             1,
