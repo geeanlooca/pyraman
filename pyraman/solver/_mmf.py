@@ -7,7 +7,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy
-
 from scipy import polyval
 
 from pyraman.solver.solvers import Fiber, RamanAmplifier

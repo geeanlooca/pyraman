@@ -3,7 +3,6 @@ from pdb import set_trace
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.integrate
-
 from scipy import polyval
 
 import pyraman.utils
