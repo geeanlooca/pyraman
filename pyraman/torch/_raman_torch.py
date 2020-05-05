@@ -119,10 +119,13 @@ class MMFRamanAmplifier(torch.nn.Module):
         pump_power = torch.zeros((num_pumps * self.modes))
         x = torch.cat((pump_lambda, pump_power)).float().view(1, -1)
 
-        direction = torch.ones(((self.num_pumps + self.num_channels) * self.modes,))
+        direction = torch.ones(
+            ((self.num_pumps + self.num_channels) * self.modes,)
+        ).float()
+
         if counterpumping:
             self.counterpumping = True
-            direction[self.num_pumps * self.modes :] = -1
+            direction[: self.num_pumps * self.modes] = -1
         else:
             self.counterpumping = False
 
@@ -197,9 +200,9 @@ class MMFRamanAmplifier(torch.nn.Module):
                 + torch.matmul(gain_matrix, P.view(batch_size, -1, 1))
             )
             * P.view(batch_size, -1, 1)
-        ).view(batch_size, -1) * direction
+        ).view(batch_size, -1)
 
-        return dPdz
+        return dPdz * direction
 
     def forward(self, x):
         """Solves the propagation equation using a RK4 scheme.
