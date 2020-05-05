@@ -19,6 +19,7 @@ class MMFRamanAmplifier(torch.nn.Module):
         fiber,
         fs=80e12,
         dF=50e9,
+        counterpumping=None,
     ):
         """A PyTorch model of a Multi-Mode Fiber Raman Amplifier.
 
@@ -118,8 +119,22 @@ class MMFRamanAmplifier(torch.nn.Module):
         pump_power = torch.zeros((num_pumps * self.modes))
         x = torch.cat((pump_lambda, pump_power)).float().view(1, -1)
 
+        direction = torch.ones(((self.num_pumps + self.num_channels) * self.modes,))
+        if counterpumping:
+            self.counterpumping = True
+            direction[self.num_pumps * self.modes :] = -1
+        else:
+            self.counterpumping = False
+
+        self.register_buffer("direction", direction)
+
         # Propagate the pumps to compute the output spectrum
-        off_gain = self.forward(x).view(1, -1)
+
+        if counterpumping:
+            off_gain, _ = self.forward(x)
+            off_gain = off_gain.view(1, -1)
+        else:
+            off_gain = self.forward(x).view(1, -1)
 
         # Save it in a buffer
         self.register_buffer("off_gain", off_gain)
@@ -155,7 +170,7 @@ class MMFRamanAmplifier(torch.nn.Module):
         )
 
     @staticmethod
-    def ode(P, z, losses, gain_matrix):
+    def ode(P, z, losses, gain_matrix, direction):
         """Batched version of the multimode Raman amplifier equations.
 
         Params
@@ -177,11 +192,14 @@ class MMFRamanAmplifier(torch.nn.Module):
 
         batch_size = P.shape[0]
         dPdz = (
-            -losses.view(batch_size, -1, 1)
-            + torch.matmul(gain_matrix, P.view(batch_size, -1, 1))
-        ) * P.view(batch_size, -1, 1)
+            (
+                -losses.view(batch_size, -1, 1)
+                + torch.matmul(gain_matrix, P.view(batch_size, -1, 1))
+            )
+            * P.view(batch_size, -1, 1)
+        ).view(batch_size, -1) * direction
 
-        return dPdz.view(batch_size, -1)
+        return dPdz
 
     def forward(self, x):
         """Solves the propagation equation using a RK4 scheme.
@@ -196,9 +214,6 @@ class MMFRamanAmplifier(torch.nn.Module):
         torch.Tensor
             Gain on each mode (B, N_signals, N_modes)
         """
-
-        # import pdb
-        # pdb.set_trace()
 
         batch_size = x.shape[0]
 
@@ -259,10 +274,6 @@ class MMFRamanAmplifier(torch.nn.Module):
         gain = self._interpolate_response(torch.abs(interpolation_grid))[:, 0, 0, :]
         gain[idx] *= -1
 
-        # import pdb
-
-        # pdb.set_trace()
-
         # Restore the batched matrices: (B, N * N) -> (B, N, N)
         gain = gain.view(batch_size, num_freqs, num_freqs)
         # diag = torch.diagonal(gain, dim1=-2, dim2=-1).fill_(0)
@@ -303,12 +314,15 @@ class MMFRamanAmplifier(torch.nn.Module):
         )
 
         G = gain * oi
-        # G = torch.zeros_like(G)
 
         solution = torch_rk4(
-            MMFRamanAmplifier.ode, total_power, self.z, losses, G,
+            MMFRamanAmplifier.ode, total_power, self.z, losses, G, self.direction,
         ).view(-1, num_freqs, self.modes)
 
         signal_spectrum = solution[:, self.num_pumps :, :].clone()
 
-        return signal_spectrum
+        if self.counterpumping:
+            pump_initial_power = solution[:, : self.num_pumps, :].clone()
+            return signal_spectrum, pump_initial_power
+        else:
+            return signal_spectrum
