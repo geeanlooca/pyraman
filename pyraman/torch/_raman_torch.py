@@ -53,6 +53,9 @@ class MMFRamanAmplifier(torch.nn.Module):
         self.steps = steps
         z = torch.linspace(0, self.length, self.steps)
 
+        if isinstance(signal_wavelength, np.ndarray):
+            signal_wavelength = torch.from_numpy(signal_wavelength).float()
+
         signal_power = self.power_per_channel * torch.ones(
             (1, self.num_channels * self.modes)
         )
@@ -70,6 +73,9 @@ class MMFRamanAmplifier(torch.nn.Module):
             + loss_coeffs[1] * (signal_wavelength * 1e9)
             + loss_coeffs[0] * (signal_wavelength * 1e9) ** 2
         )
+
+        if isinstance(signal_loss, np.ndarray):
+            signal_loss = torch.from_numpy(signal_loss)
 
         signal_loss = signal_loss.repeat_interleave(self.modes).view(1, -1)
 
