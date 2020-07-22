@@ -19,7 +19,14 @@ class MMFAmplifier(RamanAmplifier):
         super().__init__()
 
     def solve(
-        self, signal_power, signal_wavelength, pump_power, pump_wavelength, z, fiber
+        self,
+        signal_power,
+        signal_wavelength,
+        pump_power,
+        pump_wavelength,
+        z,
+        fiber,
+        counterpumping=False,
     ):
         """Solve the multi-mode Raman amplifier equations [1].
 
@@ -103,8 +110,15 @@ class MMFAmplifier(RamanAmplifier):
 
         gains_mmf = np.kron(gain_matrix, M) * oi
 
+        direction = np.ones((total_wavelengths * fiber.modes,))
+        if counterpumping:
+            direction[: num_pumps * fiber.modes] = -1
+
         sol = scipy.integrate.odeint(
-            MMFAmplifier.raman_ode, input_power, z, args=(losses_linear, gains_mmf)
+            MMFAmplifier.raman_ode,
+            input_power,
+            z,
+            args=(losses_linear, gains_mmf, direction),
         )
 
         sol = sol.reshape((-1, total_signals, fiber.modes))
@@ -115,13 +129,13 @@ class MMFAmplifier(RamanAmplifier):
         return pump_solution, signal_solution
 
     @staticmethod
-    def raman_ode(P, z, losses, gain_matrix):
+    def raman_ode(P, z, losses, gain_matrix, direction):
         """Integration step of the multimode Raman system."""
         dPdz = (-losses[:, np.newaxis] + np.matmul(gain_matrix, P[:, np.newaxis])) * P[
             :, np.newaxis
         ]
 
-        return np.squeeze(dPdz)
+        return np.squeeze(dPdz) * direction
 
 
 if __name__ == "__main__":
