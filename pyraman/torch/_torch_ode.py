@@ -19,10 +19,16 @@ def torch_rk4(func, y0, t, *args, **kwargs):
 
     for i in range(1, len(t)):
         h = t[i] - t[i - 1]
-        k1 = h * func(y, t[i - 1], *args, **kwargs)
-        k2 = h * func(y + k1 / 2, t[i - 1] + h / 2, *args, **kwargs)
-        k3 = h * func(y + k2 / 2, t[i - 1] + h / 2, *args, **kwargs)
-        k4 = h * func(y + k3, t[i - 1] + h, *args, **kwargs)
-        y = y + 1 / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        t0 = t[i - 1]
+        y = rk4_step(func, y, t0, h, *args, **kwargs)
 
     return y
+
+
+def rk4_step(func, y0, t0, stepsize, *args, **kwargs):
+    h = stepsize
+    k1 = h * func(y0, t0, *args, **kwargs)
+    k2 = h * func(y0 + k1 / 2, t0 + h / 2, *args, **kwargs)
+    k3 = h * func(y0 + k2 / 2, t0 + h / 2, *args, **kwargs)
+    k4 = h * func(y0 + k3, t0 + h, *args, **kwargs)
+    return y0 + 1 / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
