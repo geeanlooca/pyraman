@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 from scipy import polyval
-from scipy.constants import Planck as h_planck
 from scipy.constants import Boltzmann as kB
+from scipy.constants import Planck as h_planck
 from scipy.constants import lambda2nu
 
 from pyraman.solver.solvers import RamanAmplifier

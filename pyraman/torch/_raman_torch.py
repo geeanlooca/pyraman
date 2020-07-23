@@ -1,9 +1,9 @@
 import math
 
 import numpy as np
-import torch
 from scipy.constants import speed_of_light
 
+import torch
 from pyraman.response import impulse_response
 from pyraman.torch import torch_rk4
 

@@ -1,11 +1,12 @@
-"""Module for testing the Raman Multimode PyTorch solver in counterpumping mode."""
+"""Module for testing the Raman Multimode PyTorch solver in counterpumping
+mode."""
 
 import argparse
 
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
 
+import torch
 from pyraman import MMFAmplifier
 from pyraman.sample_fibers import fiber
 from pyraman.torch import MMFRamanAmplifier
