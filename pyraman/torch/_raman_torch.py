@@ -5,7 +5,7 @@ from scipy.constants import speed_of_light
 
 import torch
 from pyraman.response import impulse_response
-from pyraman.torch import torch_rk4
+from pyraman.torch._torch_ode import torch_rk4
 
 
 class MMFRamanAmplifier(torch.nn.Module):

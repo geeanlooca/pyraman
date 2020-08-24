@@ -8,12 +8,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 from scipy import polyval
+import scipy.optimize
 from scipy.constants import Boltzmann as kB
 from scipy.constants import Planck as h_planck
 from scipy.constants import lambda2nu
 
 from pyraman.solver.solvers import RamanAmplifier
 from pyraman.utils import alpha_to_linear, wavelength_to_frequency
+
+
+class TimeOut(Exception):
+    """Raise a timeout exception to stop the shooting algorithm."""
+
+    pass
 
 
 class MMFAmplifier(RamanAmplifier):
@@ -33,6 +40,8 @@ class MMFAmplifier(RamanAmplifier):
         ase=False,
         reference_bandwidth=0.1,
         temperature=300,
+        shooting=None,
+        initial_guesses=None,
     ):
         """Solve the multi-mode Raman amplifier equations [1].
 
@@ -66,6 +75,9 @@ class MMFAmplifier(RamanAmplifier):
             Optional, by default 0.1 nm.
         temperature: float, optional
             The optical fiber temperature (K). Optional, by default 300 K.
+        shooting : bool, optional
+            Use a shooting method to solve the counterpumping case,
+            by default None.
 
         References
         ----------
@@ -129,20 +141,105 @@ class MMFAmplifier(RamanAmplifier):
         if not ase:
             direction = np.ones((total_wavelengths * fiber.modes,))
 
-            if counterpumping:
+            if counterpumping or shooting:
                 direction[: num_pumps * fiber.modes] = -1
 
-            sol = scipy.integrate.odeint(
-                MMFAmplifier.raman_ode,
-                input_power,
-                z,
-                args=(losses_linear, gains_mmf, direction),
-            )
+            if not shooting:
+                sol = scipy.integrate.odeint(
+                    MMFAmplifier.raman_ode,
+                    input_power,
+                    z,
+                    args=(losses_linear, gains_mmf, direction),
+                )
 
-            sol = sol.reshape((-1, total_signals, fiber.modes))
+                sol = sol.reshape((-1, total_signals, fiber.modes))
 
-            pump_solution = sol[:, :num_pumps, :]
-            signal_solution = sol[:, num_pumps:, :]
+                pump_solution = sol[:, :num_pumps, :]
+                signal_solution = sol[:, num_pumps:, :]
+            else:
+                # SHOOTING METHOD
+
+                pump_losses = losses_linear[: num_pumps * fiber.modes]
+
+                if initial_guesses is None:
+                    initial_guesses = pump_power_ * np.exp(-z[-1] * pump_losses) / 10
+
+                callback_info = {
+                    "max_error": float("inf"),
+                    "iter": 0,
+                    "threshold": 0.5,
+                    "params": None,
+                }
+
+                def callback(x):
+                    max_error = callback_info["max_error"]
+                    threshold = callback_info["threshold"]
+                    print(f"Max error: {max_error} mW")
+                    if max_error < threshold:
+                        # print(f"Shooting error < {threshold}, stopping optimization")
+                        callback_info["params"] = np.copy(x)
+                        raise TimeOut("Stopping optimization")
+
+                def optim_fun(x0):
+                    input_power = np.concatenate((x0, signal_power_))
+
+                    sol = scipy.integrate.odeint(
+                        MMFAmplifier.raman_ode,
+                        input_power,
+                        z,
+                        args=(losses_linear, gains_mmf, direction),
+                    )
+
+                    sol = sol.reshape((-1, total_signals, fiber.modes))
+
+                    pump_solution = sol[-1, :num_pumps, :].flatten()
+
+                    # return the MSE between desired solution and obtained values
+                    cost = np.sqrt(
+                        np.mean((pump_solution * 1e3 - pump_power_ * 1e3) ** 2)
+                    )
+
+                    max_error = np.max(np.abs(pump_solution - pump_power_)) * 1e3
+
+                    callback_info["max_error"] = max_error
+
+                    # print(f"RMSE: {cost:.3f} mW\tMax. Error {max_error:.2f} mW")
+
+                    return cost
+
+                bounds = [(0, None) for _ in range(num_pumps * fiber.modes)]
+
+                try:
+                    result = scipy.optimize.minimize(
+                        # optim_fun, initial_guesses, method="L-BFGS-B", bounds=bounds
+                        optim_fun,
+                        initial_guesses,
+                        method="L-BFGS-B",
+                        options={"maxfun": 1e8, "maxiter": 1e6, "ftol": 1e-11},
+                        bounds=bounds,
+                        callback=callback,
+                    )
+
+                    x0 = result.x
+                except TimeOut:
+                    x0 = callback_info["params"]
+
+                # Result of the optimization process: pump power at z=0
+
+                # Propagate
+                input_power = np.concatenate((x0, signal_power_))
+
+                sol = scipy.integrate.odeint(
+                    MMFAmplifier.raman_ode,
+                    input_power,
+                    z,
+                    args=(losses_linear, gains_mmf, direction),
+                )
+
+                sol = sol.reshape((-1, total_signals, fiber.modes))
+
+                pump_solution = sol[:, :num_pumps, :]
+                signal_solution = sol[:, num_pumps:, :]
 
             return pump_solution, signal_solution
         else:
@@ -166,8 +263,10 @@ class MMFAmplifier(RamanAmplifier):
             f_a = lambda2nu(w_a)
             f_b = lambda2nu(w_b)
             reference_bandwidth_hz = np.abs(f_a - f_b)
+            print(reference_bandwidth * 1e9, " nm")
+            print(reference_bandwidth_hz * 1e-9, " GHz")
 
-            if counterpumping:
+            if counterpumping or shooting:
                 direction[: num_pumps * fiber.modes] = -1
 
             # Initial conditions, ase power must be 0 at z=0
@@ -202,6 +301,9 @@ class MMFAmplifier(RamanAmplifier):
             ase_solution = sol[:, -num_signals:, :]
 
             return pump_solution, signal_solution, ase_solution
+
+    def solve_shooting():
+        pass
 
     @staticmethod
     def raman_ode(P, z, losses, gain_matrix, direction):
