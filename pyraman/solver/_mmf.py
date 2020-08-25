@@ -247,6 +247,7 @@ class MMFAmplifier(RamanAmplifier):
 
             # Compute the phonon occupancy factor
             Hinv = np.exp(h_planck * np.abs(frequency_shifts) / (kB * temperature)) - 1
+
             eta = 1 + 1 / Hinv
             np.fill_diagonal(eta, 0)
             eta = np.repeat(np.repeat(eta, fiber.modes, axis=0), fiber.modes, axis=1)
@@ -263,8 +264,6 @@ class MMFAmplifier(RamanAmplifier):
             f_a = lambda2nu(w_a)
             f_b = lambda2nu(w_b)
             reference_bandwidth_hz = np.abs(f_a - f_b)
-            print(reference_bandwidth * 1e9, " nm")
-            print(reference_bandwidth_hz * 1e-9, " GHz")
 
             if counterpumping or shooting:
                 direction[: num_pumps * fiber.modes] = -1
