@@ -16,7 +16,7 @@ from pyraman.torch import MMFTorchRamanAmplifierWithASE
 
 def test_torch_solution_vs_numpy():
     visual_debug = False  # Set to True to enable plotting
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
 
     num_pumps = 4
     num_channels = 50
@@ -97,7 +97,7 @@ def test_torch_solution_vs_numpy():
 @pytest.mark.parametrize("counterpumping", [True, False])
 @pytest.mark.parametrize("num_pumps", [1, 2, 4])
 def test_torch_ase_solution_vs_numpy(counterpumping, num_pumps):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
     visual_debug = False  # Set to True to enable plotting
     amplifier_length = 100e3
     num_steps = 1000
