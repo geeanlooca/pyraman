@@ -247,6 +247,7 @@ class MMFTorchRamanAmplifierWithASE(torch.nn.Module):
         ).view(batch_size, -1)
 
         gain_factor_ase = torch.matmul(gain_matrix_ase, P_.view(batch_size, -1, 1))
+        # gain_factor_ase = torch.ones_like(P_).view(batch_size, -1, 1)
         gain_factor_ase_ = gain_factor_ase[:, -num_ase:]
 
         dASEdz = (
@@ -374,15 +375,21 @@ class MMFTorchRamanAmplifierWithASE(torch.nn.Module):
         G = gain * oi
 
         # Compute noise terms
-        Hinv = torch.exp(h_planck * torch.abs(freqs_diff) / (kB * self.temperature)) - 1
+        freqs_diff_ = torch.abs(freqs_diff)
+        infinity_index = freqs_diff_ == 0
+        freqs_diff_[infinity_index] = -torch.tensor(float("Inf"))
+        Hinv = torch.exp(h_planck * (freqs_diff_) / (kB * self.temperature)) - 1
         eta = 1 + 1 / Hinv
-        eta[torch.isinf(eta)] = 0
+        # eta[infinity_index] = 2
 
         eta = eta.repeat_interleave(self.modes, dim=1).repeat_interleave(
             self.modes, dim=2
         )
 
         ase_input_power = torch.zeros((batch_size, self.num_channels * self.modes))
+        # ase_input_power = 1e-10 * torch.ones(
+        #     (batch_size, self.num_channels * self.modes)
+        # )
         ase_frequencies = signal_freqs.repeat_interleave(self.modes, dim=1)
 
         # Concatenate input pump power and signal power
@@ -396,20 +403,6 @@ class MMFTorchRamanAmplifierWithASE(torch.nn.Module):
         )
 
         G_ase = eta * G
-
-        #
-        # P,
-        # z,
-        # losses,
-        # gain_matrix,
-        # direction
-        # gain_matrix_ase,
-        # frequencies,
-        # reference_bandwidth,
-        # direction,
-        # num_signals,
-        # num_pumps,
-        # num_modes,
 
         solution = torch_rk4(
             MMFTorchRamanAmplifierWithASE.ode,

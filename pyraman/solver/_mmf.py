@@ -167,7 +167,7 @@ class MMFAmplifier(RamanAmplifier):
                 callback_info = {
                     "max_error": float("inf"),
                     "iter": 0,
-                    "threshold": 0.5,
+                    "threshold": 0.01,
                     "params": None,
                 }
 
@@ -181,7 +181,9 @@ class MMFAmplifier(RamanAmplifier):
                         raise TimeOut("Stopping optimization")
 
                 def optim_fun(x0):
-                    input_power = np.concatenate((x0, signal_power_))
+                    
+                    x0_ = 10 ** (x0/10)
+                    input_power = np.concatenate((x0_, signal_power_))
 
                     sol = scipy.integrate.odeint(
                         MMFAmplifier.raman_ode,
@@ -213,16 +215,18 @@ class MMFAmplifier(RamanAmplifier):
                     result = scipy.optimize.minimize(
                         # optim_fun, initial_guesses, method="L-BFGS-B", bounds=bounds
                         optim_fun,
-                        initial_guesses,
+                        10*np.log10(initial_guesses),
                         method="L-BFGS-B",
-                        options={"maxfun": 1e8, "maxiter": 1e6, "ftol": 1e-11},
-                        bounds=bounds,
+                        options={"maxfun": 1e10, "maxiter": 1e10, "ftol": 1e-15},
+                        #bounds=bounds,
                         callback=callback,
                     )
 
                     x0 = result.x
                 except TimeOut:
                     x0 = callback_info["params"]
+                    
+                x0 = 10 ** (x0/10)
 
                 # Result of the optimization process: pump power at z=0
 

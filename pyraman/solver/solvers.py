@@ -24,6 +24,7 @@ class Fiber:
         effective_area=80e-12,
         modes=1,
         overlap_integrals=None,
+        mode_names=None,
     ):
         self.effective_area = effective_area
         self.raman_coefficient = raman_coefficient
@@ -36,6 +37,7 @@ class Fiber:
         self.raman_efficiency = self.raman_coefficient / self.effective_area
         self.modes = modes
         self.overlap_integrals = overlap_integrals
+        self.mode_names = mode_names
 
         super().__init__()
 
