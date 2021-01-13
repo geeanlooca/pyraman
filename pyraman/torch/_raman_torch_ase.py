@@ -25,6 +25,7 @@ class MMFTorchRamanAmplifierWithASE(torch.nn.Module):
         temperature=300,
         counterpumping=None,
         reference_bandwidth=0.5,
+        copropagating_pumps=0,
     ):
         """A PyTorch model of a Multi-Mode Fiber Raman Amplifier.
 
@@ -48,6 +49,8 @@ class MMFTorchRamanAmplifierWithASE(torch.nn.Module):
             The spacing between samples of the Raman frequency response, by default 50e9
         reference_bandwidth : float, optional
             The bandwidth (nm) over which noise is calculated, by default 0.5 nm.
+        copropagating_pumps : int, optional
+            The number of copropagating pumps
         """
 
         super(MMFTorchRamanAmplifierWithASE, self).__init__()
@@ -145,6 +148,7 @@ class MMFTorchRamanAmplifierWithASE(torch.nn.Module):
         pump_lambda = torch.linspace(1420, 1480, self.num_pumps) * 1e-9
         pump_power = torch.zeros((num_pumps * self.modes))
         x = torch.cat((pump_lambda, pump_power)).float().view(1, -1)
+        self.copropagating_pumps = copropagating_pumps
 
         direction = torch.ones(
             ((self.num_pumps + self.num_channels + self.num_channels) * self.modes,)
@@ -153,6 +157,7 @@ class MMFTorchRamanAmplifierWithASE(torch.nn.Module):
         if counterpumping:
             self.counterpumping = True
             direction[: self.num_pumps * self.modes] = -1
+            direction[: self.copropagating_pumps * self.modes] = 1
         else:
             self.counterpumping = False
 
