@@ -42,6 +42,7 @@ class MMFAmplifier(RamanAmplifier):
         temperature=300,
         shooting=None,
         initial_guesses=None,
+        direction=None
     ):
         """Solve the multi-mode Raman amplifier equations [1].
 
@@ -139,9 +140,9 @@ class MMFAmplifier(RamanAmplifier):
         gains_mmf = np.kron(gain_matrix, M) * oi
 
         if not ase:
-            direction = np.ones((total_wavelengths * fiber.modes,))
-
-            if counterpumping or shooting:
+            if direction is not None:
+                direction = np.ones((total_wavelengths * fiber.modes,))
+            elif counterpumping or shooting:
                 direction[: num_pumps * fiber.modes] = -1
 
             if not shooting:
