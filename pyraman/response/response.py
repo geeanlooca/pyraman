@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.interpolate
+from scipy.constants import lambda2nu, epsilon_0
 
 from pyraman.utils import c0
 
@@ -192,17 +193,115 @@ def gain_spectrum(frequencies, spacing=20e9, normalize=False, spline_order=4):
     return gains, gain, f
 
 
+def agrawal_copolarized_response(duration, fs):
+    dt = 1 / fs
+
+    num_samples = np.math.ceil(duration / dt)
+
+    t = np.arange(num_samples) * dt
+
+    tau1 = 12.2e-15
+    tau2 = 32e-15
+
+    response = (
+        tau1
+        * (1 / (tau1 ** 2) + 1 / (tau2 ** 2))
+        * np.exp(-t / tau2)
+        * np.sin(t / tau1)
+    )
+
+    return response, t
+
+
+def agrawal_crosspolarized_response(duration, fs):
+    dt = 1 / fs
+
+    num_samples = np.math.ceil(duration / dt)
+
+    t = np.arange(num_samples) * dt
+
+    tau1 = 12.2e-15
+    tau2 = 32e-15
+    taub = 96e-15
+
+    response = (2 * taub - t) / (taub ** 2) * np.exp(-t / taub)
+
+    return response, t
+
+
 if __name__ == "__main__":
-    resp, t = impulse_response(1e-12, 1e14)
 
-    freq = np.linspace(4e12, 40e12, 100)
-    freq2 = -np.linspace(10e12, 40e12, 100)
+    wavelength = 514e-9
+    fs = 1e15
+    duration = 1e-11
+    fa, fb, fc = 0.75, 0.21, 0.04
+    fR = 0.245
 
-    ff = np.stack((freq, freq2))
+    n2 = 2.6e-20
+    gamma = n2 * lambda2nu(wavelength) * 2 * np.pi / c0
+    print(gamma)
 
-    raman_gain_interp, spectrum, f = gain_spectrum(ff, normalize=True)
+    copolarized, t = agrawal_copolarized_response(duration, fs)
+    crosspolarized, t = agrawal_crosspolarized_response(duration, fs)
 
-    plt.clf()
-    plt.plot(f * 1e-12, spectrum)
-    plt.plot(ff.T * 1e-12, raman_gain_interp.T, marker="x")
-    plt.show(block=False)
+    nsamp = len(t)
+    f = np.arange(nsamp) * fs / nsamp
+
+    copolarized *= fa + fc
+    crosspolarized *= fb
+
+    total_response = fR * (copolarized + crosspolarized)
+    total_response_spectrum = np.fft.fft(total_response) / fs
+    total_gain_spectrum = 2 * gamma * np.imag(total_response_spectrum)
+
+    co_spectrum = -np.imag(np.fft.fft(copolarized)) / fs
+    cross_spectrum = -np.imag(np.fft.fft(crosspolarized)) / fs
+    real_co = np.real(np.fft.fft(copolarized)) / fs
+    real_cross = np.real(np.fft.fft(crosspolarized)) / fs
+
+    a_tilde = np.fft.fft(copolarized) / fs
+    b_tilde = np.fft.fft(crosspolarized) / fs
+
+    # in cm/W
+    co_gain = 2 * gamma * fR * co_spectrum * epsilon_0 * 1e2
+    cross_gain = 2 * gamma * fR * cross_spectrum * epsilon_0 * 1e2
+
+    # at 526 nm
+    freq_scaling = lambda2nu(526e-9) / lambda2nu(wavelength)
+
+    plt.figure()
+    plt.plot(f * 1e-12, -total_gain_spectrum * 1e2, label="795.5 nm")
+    plt.plot(f * 1e-12, -total_gain_spectrum * 1e2 * freq_scaling, label="526 nm")
+    plt.xlabel("Frequency [THz]")
+    plt.ylabel("Total gain spectrum [cm/W]")
+    plt.legend()
+    plt.xlim(0, 40)
+    plt.ylim(0, 2e-11)
+    plt.minorticks_on()
+    plt.grid(which="both")
+
+    plt.figure()
+    plt.plot(f * 1e-12, np.real(total_response_spectrum), label="Real")
+    plt.plot(f * 1e-12, np.imag(total_response_spectrum), label="Imaginary")
+    plt.xlabel("Frequency [THz]")
+    plt.ylabel("Total response spectrum")
+    plt.legend()
+    plt.xlim(0, 40)
+    plt.minorticks_on()
+    plt.grid(which="both")
+
+    # Real and imaginary parts of A(f), B(f)
+    fig, ax = plt.subplots(ncols=2, figsize=(10, 5))
+    ax[0].plot(f * 1e-12, np.real(a_tilde), label=r"$\tilde{a}$, real")
+    ax[0].plot(f * 1e-12, np.imag(a_tilde), label=r"$\tilde{a}$, imag")
+    ax[0].set_xlabel("frequency [thz]")
+    ax[0].set_xlim(0, 40)
+    ax[0].legend()
+
+    ax[1].plot(f * 1e-12, np.real(b_tilde), label=r"$\tilde{b}$, real")
+    ax[1].plot(f * 1e-12, np.imag(b_tilde), label=r"$\tilde{b}$, imag")
+    ax[1].set_xlabel("frequency [thz]")
+    ax[1].set_xlim(0, 40)
+    ax[1].legend()
+
+    plt.show()
